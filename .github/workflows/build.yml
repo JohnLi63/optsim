@@ -20,6 +20,20 @@ jobs:
           pip install numpy scipy matplotlib PySide6-Essentials pyinstaller
       - name: Build
         run: pyinstaller --noconfirm optsim.spec
+      - name: Self-test (launch the packaged app headless)
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          code=0
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            powershell -Command "\$p = Start-Process -FilePath dist/optsim/optsim.exe -ArgumentList '--selftest' -Wait -PassThru; exit \$p.ExitCode" || code=$?
+          else
+            sudo apt-get install -y -q libegl1 libxkbcommon0 libfontconfig1 libdbus-1-3 > /dev/null
+            dist/optsim/optsim --selftest || code=$?
+          fi
+          cat ~/optsim/selftest.txt
+          exit $code
       - uses: actions/upload-artifact@v4
         with:
           name: optsim-${{ runner.os }}

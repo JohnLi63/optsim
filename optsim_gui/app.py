@@ -670,7 +670,34 @@ class Main(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.warning(self, "标定失败", e)
 
 
+def selftest():
+    """打包后自检：建窗口、标定、刷新对焦页、全档分析、玻璃搜索；结果写到 ~/optsim/selftest.txt，返回码 0 = 通过。"""
+    import time
+    os.makedirs(APP_DIR, exist_ok=True)
+    out = os.path.join(APP_DIR, "selftest.txt")
+    try:
+        app = QtWidgets.QApplication(sys.argv)
+        w = Main(); w.show(); t0 = time.time()
+        while w.cfg is None and time.time() - t0 < 600:
+            app.processEvents(); time.sleep(0.05)
+        assert w.cfg is not None, "标定超时"
+        w.focus.refresh()
+        e = E.eval_path(w.cfg, 1, 1.0, "nir", [0, 0, w.cfg["z_obj0"] + 2.0], E.autofocus(w.cfg, 1.0, [0, 0, w.cfg["z_obj0"] + 2.0]), 0.0)
+        r = E.run_analysis(w.user, w.cfg)
+        found = G.search(np.ones(len(G.NAMES), bool), np.array([0.45, 0.55, 0.83]), 100.0, 4.0)
+        msg = (f"OK  标定 {time.time()-t0:.1f}s; 1x Δz=+2 NIR 离焦 {e['s']*1000:.2f} µm; "
+               f"最优垫片 {r['shim_um']:+.0f} µm 最差 {r['shim_worst']:.2f}; 查表最差 {r['lut_worst']:.2f}; "
+               f"玻璃搜索第一名 {'+'.join(found[0]['names'])} 峰谷 {found[0]['pv_um']:.1f} µm")
+        open(out, "w", encoding="utf-8").write(msg + "\n"); print(msg)
+        return 0
+    except Exception:
+        open(out, "w", encoding="utf-8").write("FAIL\n" + traceback.format_exc()); print(traceback.format_exc())
+        return 1
+
+
 def main():
+    if "--selftest" in sys.argv:
+        sys.exit(selftest())
     QtWidgets.QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle("Fusion")
